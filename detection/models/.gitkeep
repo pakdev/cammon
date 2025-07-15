@@ -1,0 +1,2 @@
+# Place your TensorFlow Lite models here
+# Example: mobilenet_ssd_v2_coco_quant_postprocess_edgetpu.tflite
