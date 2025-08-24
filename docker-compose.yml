@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: go2rtc
+    ports:
+      - "1984:1984"
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    hostname: zookeeper
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  cam_io:
+    build:
+      context: ./cam_io
+      dockerfile: Dockerfile
+    container_name: cam_io
+    depends_on:
+      - kafka
+      - go2rtc
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - GO2RTC_URL=http://go2rtc:1984/api/frame.jpeg?src=camera1
+      - CAPTURE_INTERVAL=3
+    restart: unless-stopped
+
+  recorder:
+    build:
+      context: ./recorder
+      dockerfile: Dockerfile
+    container_name: recorder
+    depends_on:
+      - go2rtc
+    environment:
+      - GO2RTC_URL=http://go2rtc:1984/api/stream.mp4?src=camera1
+      - RECORDING_INTERVAL=60
+      - RECORDINGS_DIR=/recordings
+      - USE_GOOGLE_DRIVE=true
+      - GOOGLE_DRIVE_FOLDER_ID=1ISvMPz5kMsHG6Jp7Vo82tU9oxFlh6oUI
+    volumes:
+      - ./recordings:/recordings
+      - ./recorder:/app  # For token.json persistence and secret.json access
+    restart: unless-stopped
+
+  detection:
+    build:
+      context: ./detection
+      dockerfile: Dockerfile
+    container_name: detection
+    depends_on:
+      - kafka
+      - cam_io
+    environment:
+      - KAFKA_BROKER=kafka:29092
+    volumes:
+      - ./detection/models:/app/models
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    privileged: true
+    restart: unless-stopped

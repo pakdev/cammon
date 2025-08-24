@@ -1,0 +1,9 @@
+streams:
+  camera1:
+    - rtsp://10.0.0.201:554/Streaming/Channels/101
+
+api:
+  listen: ":1984"
+
+webrtc:
+  listen: ":8555"

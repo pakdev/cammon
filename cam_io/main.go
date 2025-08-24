@@ -5,11 +5,29 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 )
 
 func main() {
-	capture := NewImageCapture("rtsp://10.0.0.201/Streaming/Channels/101", "localhost:9092", "camera-images")
+	go2rtcURL := os.Getenv("GO2RTC_URL")
+	if go2rtcURL == "" {
+		go2rtcURL = "http://go2rtc:1984/api/frame.jpeg?src=camera1"
+	}
+
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	if kafkaBroker == "" {
+		kafkaBroker = "localhost:9092"
+	}
+	
+	captureInterval := 3 // default 3 seconds
+	if intervalStr := os.Getenv("CAPTURE_INTERVAL"); intervalStr != "" {
+		if interval, err := strconv.Atoi(intervalStr); err == nil {
+			captureInterval = interval
+		}
+	}
+
+	capture := NewSimpleCapture(go2rtcURL, kafkaBroker, "camera-images", captureInterval)
 
 	err := capture.Initialize()
 	if err != nil {

@@ -4,7 +4,9 @@
       "Bash(go run:*)",
       "Bash(go mod:*)",
       "Bash(go build:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(docker compose:*)",
+      "Bash(go get:*)"
     ],
     "deny": []
   }

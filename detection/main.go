@@ -9,7 +9,12 @@ import (
 )
 
 func main() {
-	detector := NewPersonDetector("localhost:9092", "camera-images", "detections")
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
+	if kafkaBroker == "" {
+		kafkaBroker = "localhost:9092"
+	}
+	
+	detector := NewSimpleDetector(kafkaBroker, "camera-images", "detections")
 
 	err := detector.Initialize()
 	if err != nil {
