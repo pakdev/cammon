@@ -1,4 +1,5 @@
-version: '3.8'
+networks:
+  cammon:
 
 services:
   go2rtc:
@@ -9,6 +10,8 @@ services:
     volumes:
       - ./go2rtc.yaml:/config/go2rtc.yaml
     restart: unless-stopped
+    networks:
+      - cammon
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -19,6 +22,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - cammon
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -37,6 +42,8 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - cammon
 
   cam_io:
     build:
@@ -51,6 +58,8 @@ services:
       - GO2RTC_URL=http://go2rtc:1984/api/frame.jpeg?src=camera1
       - CAPTURE_INTERVAL=3
     restart: unless-stopped
+    networks:
+      - cammon
 
   recorder:
     build:
@@ -69,6 +78,8 @@ services:
       - ./recordings:/recordings
       - ./recorder:/app  # For token.json persistence and secret.json access
     restart: unless-stopped
+    networks:
+      - cammon
 
   detection:
     build:
@@ -86,3 +97,39 @@ services:
       - /dev/bus/usb:/dev/bus/usb
     privileged: true
     restart: unless-stopped
+    networks:
+      - cammon
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    depends_on:
+      - kafka
+    ports:
+      - "0.0.0.0:8123:8123"
+    volumes:
+      - ./homeassistant/config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    environment:
+      - TZ=UTC
+    privileged: true
+    restart: unless-stopped
+    networks:
+      - cammon
+
+  notifier:
+    build:
+      context: ./notifier
+      dockerfile: Dockerfile
+    container_name: notifier
+    depends_on:
+      - kafka
+      - homeassistant
+    environment:
+      - KAFKA_BROKER=kafka:29092
+      - HA_WEBHOOK_URL=http://homeassistant:8123/api/webhook/detection_alert
+      - HA_TOKEN=
+    restart: unless-stopped
+    networks:
+      - cammon

@@ -6,7 +6,13 @@
       "Bash(go build:*)",
       "Bash(mkdir:*)",
       "Bash(docker compose:*)",
-      "Bash(go get:*)"
+      "Bash(go get:*)",
+      "Bash(python3:*)",
+      "Bash(docker run:*)",
+      "Bash(wine:*)",
+      "Read(//home/peter/.wine/**)",
+      "Bash(docker logs:*)",
+      "Bash(docker:*)"
     ],
     "deny": []
   }
