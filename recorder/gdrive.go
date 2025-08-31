@@ -22,6 +22,24 @@ type GoogleDriveUploader struct {
 	dailyFolders map[string]string // Cache for daily folder IDs
 }
 
+// tokenSaver implements oauth2.TokenSource and automatically saves tokens to disk
+type tokenSaver struct {
+	tokenSource oauth2.TokenSource
+	tokFile     string
+}
+
+// Token returns a token and saves it to disk if it's been refreshed
+func (ts *tokenSaver) Token() (*oauth2.Token, error) {
+	token, err := ts.tokenSource.Token()
+	if err != nil {
+		return nil, err
+	}
+	
+	// Save the token (which may have been refreshed)
+	saveToken(ts.tokFile, token)
+	return token, nil
+}
+
 // NewGoogleDriveUploader creates a new Google Drive uploader
 func NewGoogleDriveUploader(credentialsPath, tokenPath, folderID string) (*GoogleDriveUploader, error) {
 	ctx := context.Background()
@@ -59,27 +77,56 @@ func getClient(config *oauth2.Config, tokFile string) (*http.Client, error) {
 	// The file token.json stores the user's access and refresh tokens.
 	tok, err := tokenFromFile(tokFile)
 	if err != nil {
-		tok = getTokenFromWeb(config)
+		tok, err = getTokenFromWeb(config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token from web: %v", err)
+		}
 		saveToken(tokFile, tok)
 	}
-	return config.Client(context.Background(), tok), nil
+	
+	// Use ReuseTokenSource to automatically save refreshed tokens
+	tokenSource := oauth2.ReuseTokenSource(tok, &tokenSaver{
+		tokenSource: config.TokenSource(context.Background(), tok),
+		tokFile:     tokFile,
+	})
+	
+	return oauth2.NewClient(context.Background(), tokenSource), nil
 }
 
 // getTokenFromWeb requests a token from the web, then returns the retrieved token
-func getTokenFromWeb(config *oauth2.Config) *oauth2.Token {
+func getTokenFromWeb(config *oauth2.Config) (*oauth2.Token, error) {
 	authURL := config.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
 	fmt.Printf("Go to the following link in your browser then type the authorization code: \n%v\n", authURL)
 
+	// Check if running in interactive terminal
+	if !isTerminalInteractive() {
+		log.Printf("Non-interactive environment detected. Please run the following command locally to generate token.json:")
+		log.Printf("cd recorder && USE_GOOGLE_DRIVE=true go run .")
+		log.Printf("Then restart the container.")
+		return nil, fmt.Errorf("cannot read authorization code in non-interactive environment")
+	}
+
 	var authCode string
 	if _, err := fmt.Scan(&authCode); err != nil {
-		log.Fatalf("Unable to read authorization code: %v", err)
+		return nil, fmt.Errorf("unable to read authorization code: %v", err)
 	}
 
 	tok, err := config.Exchange(context.TODO(), authCode)
 	if err != nil {
-		log.Fatalf("Unable to retrieve token from web: %v", err)
+		return nil, fmt.Errorf("unable to retrieve token from web: %v", err)
 	}
-	return tok
+	return tok, nil
+}
+
+// isTerminalInteractive checks if we're running in an interactive terminal
+func isTerminalInteractive() bool {
+	// Check if stdin is available and looks like a terminal
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	// Check if it's a character device (terminal) and not just a pipe/file
+	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
 // tokenFromFile retrieves a token from a local file

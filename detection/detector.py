@@ -313,22 +313,23 @@ class TPUDetector:
             bbox = detection.bbox
             class_id = detection.id
             confidence = detection.score
-            
-            # PyCoral bbox coordinates are already in pixel format, not normalized
-            x = int(bbox.xmin)
-            y = int(bbox.ymin) 
-            width = int(bbox.xmax - bbox.xmin)
-            height = int(bbox.ymax - bbox.ymin)
-            
-            # Clamp coordinates to image bounds
-            x = max(0, min(x, self.input_width - 1))
-            y = max(0, min(y, self.input_height - 1))
-            width = max(1, min(width, self.input_width - x))
-            height = max(1, min(height, self.input_height - y))
-            
-            label = self.labels.get(class_id, f"class_{class_id}")
-            
-            results.append(Detection(label, confidence, (x, y, width, height)))
+
+            if class_id == 0: 
+                # PyCoral bbox coordinates are already in pixel format, not normalized
+                x = int(bbox.xmin)
+                y = int(bbox.ymin) 
+                width = int(bbox.xmax - bbox.xmin)
+                height = int(bbox.ymax - bbox.ymin)
+                
+                # Clamp coordinates to image bounds
+                x = max(0, min(x, self.input_width - 1))
+                y = max(0, min(y, self.input_height - 1))
+                width = max(1, min(width, self.input_width - x))
+                height = max(1, min(height, self.input_height - y))
+                
+                label = self.labels.get(class_id, f"class_{class_id}")
+                
+                results.append(Detection(label, confidence, (x, y, width, height)))
             
         return results
     

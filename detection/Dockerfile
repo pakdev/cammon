@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     ca-certificates \
+    wget \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Coral Edge TPU repository and install Edge TPU runtime
@@ -20,8 +22,17 @@ WORKDIR /app
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with exact versions for PyCoral compatibility
+RUN pip install --no-cache-dir kafka-python==2.0.2 Pillow==10.0.1 numpy==1.20.3
+
+# Remove any existing installations and install fresh
+RUN pip uninstall -y pycoral tflite-runtime || true
+
+# Install the exact tflite-runtime version that PyCoral 2.0 expects
+RUN pip install --extra-index-url https://google-coral.github.io/py-repo/ tflite_runtime==2.5.0.post1
+
+# Install PyCoral from the Coral repository
+RUN pip install --extra-index-url https://google-coral.github.io/py-repo/ pycoral~=2.0
 
 # Copy application code
 COPY main.py detector.py ./

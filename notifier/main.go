@@ -20,8 +20,8 @@ type Detection struct {
 }
 
 type Object struct {
-	Label      string     `json:"label"`
-	Confidence float64    `json:"confidence"`
+	Label      string      `json:"label"`
+	Confidence float64     `json:"confidence"`
 	Box        BoundingBox `json:"bounding_box"`
 }
 
@@ -33,9 +33,9 @@ type BoundingBox struct {
 }
 
 type Config struct {
-	KafkaBroker string
+	KafkaBroker  string
 	HAWebhookURL string
-	HAToken     string
+	HAToken      string
 }
 
 func main() {
@@ -69,6 +69,7 @@ func main() {
 	}()
 
 	log.Println("Starting notification service...")
+	log.Printf("Calling consumeDetections with config: %+v", config)
 	if err := consumeDetections(ctx, consumer, config); err != nil {
 		log.Fatalf("Error consuming detections: %v", err)
 	}
@@ -84,7 +85,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 func setupKafkaConsumer(broker string) (sarama.Consumer, error) {
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
-	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	consumer, err := sarama.NewConsumer([]string{broker}, config)
 	if err != nil {
@@ -95,17 +96,21 @@ func setupKafkaConsumer(broker string) (sarama.Consumer, error) {
 }
 
 func consumeDetections(ctx context.Context, consumer sarama.Consumer, config Config) error {
-	partitionConsumer, err := consumer.ConsumePartition("detections", 0, sarama.OffsetNewest)
+	log.Printf("Creating partition consumer for topic 'detections', partition 0...")
+	partitionConsumer, err := consumer.ConsumePartition("detections", 0, sarama.OffsetOldest)
 	if err != nil {
 		return fmt.Errorf("failed to create partition consumer: %w", err)
 	}
 	defer partitionConsumer.Close()
+	log.Printf("Partition consumer created successfully")
 
+	log.Printf("Starting to consume messages from partition 0...")
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		case message := <-partitionConsumer.Messages():
+			log.Printf("Received message: offset=%d, key=%s", message.Offset, string(message.Key))
 			if err := handleDetection(message.Value, config); err != nil {
 				log.Printf("Error handling detection: %v", err)
 			}
@@ -116,7 +121,7 @@ func consumeDetections(ctx context.Context, consumer sarama.Consumer, config Con
 }
 
 func handleDetection(messageValue []byte, config Config) error {
-	log.Printf("Received message: %s", string(messageValue))
+	log.Printf("Received message")
 	var detection Detection
 	if err := json.Unmarshal(messageValue, &detection); err != nil {
 		return fmt.Errorf("failed to unmarshal detection: %w", err)

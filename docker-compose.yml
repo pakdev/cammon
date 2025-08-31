@@ -76,7 +76,8 @@ services:
       - GOOGLE_DRIVE_FOLDER_ID=1ISvMPz5kMsHG6Jp7Vo82tU9oxFlh6oUI
     volumes:
       - ./recordings:/recordings
-      - ./recorder:/app  # For token.json persistence and secret.json access
+      - ./recorder/secret.json:/app/secret.json  # Mount only the secret file
+      - ./recorder/token.json:/app/token.json    # Mount token file if it exists
     restart: unless-stopped
     networks:
       - cammon
@@ -95,6 +96,7 @@ services:
       - ./detection/models:/app/models
     devices:
       - /dev/bus/usb:/dev/bus/usb
+      - /dev/bus/usb/002/005:/dev/bus/usb/002/005  # Coral TPU USB Accelerator
     privileged: true
     restart: unless-stopped
     networks:

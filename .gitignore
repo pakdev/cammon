@@ -1,4 +1,5 @@
 recorder/secret.json
+recorder/token.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
